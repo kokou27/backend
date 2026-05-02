@@ -1417,26 +1417,28 @@ module.exports = async (req, res) => {
 
                 // Pour les zones utilisateur : format pipe en PRIORITÉ (1 ligne = 1 bulle physique,
                 // impossible de fusionner). Fallback JSON seulement si pipe échoue.
-                if (isZoneOrSingle) {
-                    const zonePrompt = buildZonePipePrompt({ sourceLangName, targetLangName });
-                    const zoneData = await callGeminiPageTranslate({
+                // Format pipe en PRIORITÉ pour tous les segments (zone ET page entière).
+                // 1 ligne = 1 bulle → impossible de fusionner. Meilleure précision que JSON.
+                {
+                    const pipeFirst = buildZonePipePrompt({ sourceLangName, targetLangName });
+                    const pipeData = await callGeminiPageTranslate({
                         imageBase64: segment.imageBase64,
-                        prompt: zonePrompt,
+                        prompt: pipeFirst,
                         maxOutputTokens: outputTokenBudget,
                         responseMimeType: 'text/plain',
                         responseSchema: null,
                         temperature: 0.0,
                         model: GEMINI_MODEL_ZONE,
                     });
-                    localUsage.prompt_tokens += Number(zoneData?.usageMetadata?.promptTokenCount || 0);
-                    localUsage.output_tokens += Number(zoneData?.usageMetadata?.candidatesTokenCount || 0);
-                    localUsage.total_tokens += Number(zoneData?.usageMetadata?.totalTokenCount || 0);
+                    localUsage.prompt_tokens += Number(pipeData?.usageMetadata?.promptTokenCount || 0);
+                    localUsage.output_tokens += Number(pipeData?.usageMetadata?.candidatesTokenCount || 0);
+                    localUsage.total_tokens += Number(pipeData?.usageMetadata?.totalTokenCount || 0);
                     localUsage.calls += 1;
 
-                    if (!zoneData?.error) {
-                        const zoneRaw = extractGeminiText(zoneData);
-                        if (zoneRaw && !/^EMPTY$/i.test(zoneRaw.trim())) {
-                            parsedBlocks = parseBlocksFromLooseText(zoneRaw);
+                    if (!pipeData?.error) {
+                        const pipeRaw = extractGeminiText(pipeData);
+                        if (pipeRaw && !/^EMPTY$/i.test(pipeRaw.trim())) {
+                            parsedBlocks = parseBlocksFromLooseText(pipeRaw);
                         }
                     }
                 }
