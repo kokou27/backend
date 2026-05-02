@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "env": {
+    "NODE_NO_WARNINGS": "1"
+  },
+  "functions": {
+    "api/page-translate.js": {
+      "maxDuration": 60
+    },
+    "api/ocr.js": {
+      "maxDuration": 30
+    },
+    "api/trial-ocr.js": {
+      "maxDuration": 30
+    },
+    "api/credits.js": {
+      "maxDuration": 10
+    },
+    "api/link.js": {
+      "maxDuration": 10
+    },
+    "api/confirm-link.js": {
+      "maxDuration": 10
+    },
+    "api/webhook.js": {
+      "maxDuration": 10
+    },
+    "api/purchase.js": {
+      "maxDuration": 10
+    },
+    "api/config.js": {
+      "maxDuration": 10
+    },
+    "api/contact.js": {
+      "maxDuration": 10
+    }
+  }
+}

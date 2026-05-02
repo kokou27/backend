@@ -1,0 +1,12 @@
+{
+  "name": "screen-text-tool-backend",
+  "version": "2.0.0",
+  "description": "Backend API pour Screen Text Tool",
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.0",
+    "resend": "^3.0.0"
+  }
+}
