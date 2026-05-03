@@ -45,8 +45,9 @@ function clamp01(value) {
 
 const MAX_IMAGE_BASE64 = 6_000_000;
 const IDEMPOTENCY_TTL_HOURS = 6;
-const DEFAULT_GEMINI_INPUT_USD_PER_1M = 0.3;
-const DEFAULT_GEMINI_OUTPUT_USD_PER_1M = 2.5;
+// Prix réels Gemini 2.5 Flash (thinkingBudget: 0 = thinking désactivé)
+const DEFAULT_GEMINI_INPUT_USD_PER_1M  = 0.15;  // $0.15/1M tokens input
+const DEFAULT_GEMINI_OUTPUT_USD_PER_1M = 0.60;  // $0.60/1M tokens output
 const DEFAULT_TOKENS_PER_CREDIT = 12000;
 const DEFAULT_CALLS_PER_CREDIT = 3;
 const DEFAULT_PAGE_TRANSLATE_MIN_TOTAL_CREDITS = 2;
@@ -1013,6 +1014,29 @@ async function incrementCreditsAtomic(userId, amount) {
     };
 }
 
+// Calcule le nombre de crédits à débiter basé sur le coût RÉEL en tokens Gemini.
+// Formule : ceil((input_tokens × input_rate + output_tokens × output_rate) × markup / usd_per_credit)
+// Variables d'environnement configurables :
+//   CREDIT_MARKUP_FACTOR  : marge appliquée sur le coût Gemini (défaut 2.5 = 150% de marge)
+//   USD_PER_CREDIT        : valeur d'1 crédit en USD (défaut 0.005 = $4.99/1000 crédits)
+//   GEMINI_INPUT_USD_PER_1M_TOKENS  : prix input Gemini 2.5 Flash (défaut $0.15/1M)
+//   GEMINI_OUTPUT_USD_PER_1M_TOKENS : prix output Gemini 2.5 Flash (défaut $0.60/1M)
+function computeTokenBasedCredits(usageTotals) {
+    const inputRate  = safeNumber(process.env.GEMINI_INPUT_USD_PER_1M_TOKENS,  DEFAULT_GEMINI_INPUT_USD_PER_1M);
+    const outputRate = safeNumber(process.env.GEMINI_OUTPUT_USD_PER_1M_TOKENS, DEFAULT_GEMINI_OUTPUT_USD_PER_1M);
+    const markup     = safeNumber(process.env.CREDIT_MARKUP_FACTOR, 2.5);
+    const usdPerCredit = safeNumber(process.env.USD_PER_CREDIT, 0.005);
+
+    const inputTokens  = safeNumber(usageTotals?.prompt_tokens, 0);
+    const outputTokens = safeNumber(usageTotals?.output_tokens, 0);
+
+    const costUSD = (inputTokens / 1_000_000) * inputRate
+                  + (outputTokens / 1_000_000) * outputRate;
+
+    // Minimum 1 crédit pour couvrir les frais fixes (idempotency check, Supabase, etc.)
+    return Math.max(1, Math.ceil(costUSD * markup / usdPerCredit));
+}
+
 async function applyAdditionalUsageDebit({
     userId,
     baseCommittedBalance,
@@ -1023,14 +1047,9 @@ async function applyAdditionalUsageDebit({
     targetLang,
     segmentsCount,
 }) {
-    const creditPolicy = getPageTranslateCreditPolicy();
-    const { tokensPerCredit, callsPerCredit, minTotalCredits } = creditPolicy;
-
-    const tokenCredits = Math.max(1, Math.ceil(safeNumber(usageTotals?.total_tokens, 0) / tokensPerCredit));
-    const callCredits = Math.max(1, Math.ceil(safeNumber(usageTotals?.calls, 0) / callsPerCredit));
-    const targetTotalCreditsRaw = Math.max(tokenCredits, callCredits);
-    const targetTotalCredits = Math.max(minTotalCredits, targetTotalCreditsRaw);
-    const requestedExtra = Math.max(0, targetTotalCredits - 1);
+    // Calcul précis basé sur les tokens réels (plus de flat rate)
+    const targetTotalCredits = computeTokenBasedCredits(usageTotals);
+    const requestedExtra = Math.max(0, targetTotalCredits - 1); // 1 déjà déduit à l'avance
 
     const liveBalanceResult = await getUserBalanceById(userId);
     if (liveBalanceResult.error) {
@@ -1078,13 +1097,17 @@ async function applyAdditionalUsageDebit({
             segments_count: segmentsCount,
             idempotency_key: requestIdempotencyKey,
             dynamic_pricing: true,
-            pricing_model: 'tiered_page_translate',
+            pricing_model: 'token_based_v2',
             debit_phase: 'post_usage_adjustment',
             target_total_credits: targetTotalCredits,
             requested_extra_credits: requestedExtra,
             applied_extra_credits: extraDebit,
+            usage_prompt_tokens: safeNumber(usageTotals?.prompt_tokens, 0),
+            usage_output_tokens: safeNumber(usageTotals?.output_tokens, 0),
             usage_total_tokens: safeNumber(usageTotals?.total_tokens, 0),
             usage_calls: safeNumber(usageTotals?.calls, 0),
+            markup_factor: safeNumber(process.env.CREDIT_MARKUP_FACTOR, 2.5),
+            usd_per_credit: safeNumber(process.env.USD_PER_CREDIT, 0.005),
         },
         created_at: new Date().toISOString(),
     }]).then(({ error }) => { if (error) console.error('Transaction adjust log error:', error); });

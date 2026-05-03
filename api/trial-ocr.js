@@ -11,7 +11,8 @@ function setCors(req, res) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-const DAILY_TRIAL_LIMIT = 2;
+// Nombre de traductions IA gratuites par jour (configurable via env var)
+const DAILY_TRIAL_LIMIT = parseInt(process.env.DAILY_TRIAL_LIMIT || '2', 10);
 
 const OCR_LANG_NAMES = {
     eng: 'English', fra: 'French', jpn: 'Japanese', jpn_vert: 'Japanese (vertical)', spa: 'Spanish',
