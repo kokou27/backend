@@ -7,6 +7,9 @@
     "api/page-translate.js": {
       "maxDuration": 60
     },
+    "api/tts.js": {
+      "maxDuration": 10
+    },
     "api/ocr.js": {
       "maxDuration": 30
     },
