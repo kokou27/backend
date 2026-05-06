@@ -1,11 +1,7 @@
-const { createClient } = require('@supabase/supabase-js');
+import { getSupabase } from '../_lib/supabase.js';
 
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SECRET_KEY
-);
-
-module.exports = async (req, res) => {
+export default async (req, res) => {
+  const supabase = getSupabase();
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
     const { token } = req.query;

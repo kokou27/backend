@@ -1,12 +1,8 @@
-const { createClient } = require('@supabase/supabase-js');
-const { Resend } = require('resend');
+import { Resend } from 'resend';
+import { getSupabase } from '../_lib/supabase.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET_KEY
-);
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+let _resend = null;
+const getResend = () => { if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY); return _resend; };
 
 function setCors(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -40,7 +36,9 @@ async function ensureSecretToken(userId, existingToken) {
   return generatedToken;
 }
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
+  const supabase = getSupabase();
+  const resend   = getResend();
   setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });

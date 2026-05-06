@@ -1,12 +1,7 @@
 // api/credits.js — Vercel Serverless Function
 // GET /api/credits?extensionId=xxx
 
-const { createClient } = require('@supabase/supabase-js');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET_KEY
-);
+import { getSupabase } from '../_lib/supabase.js';
 
 function setCors(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,7 +9,8 @@ function setCors(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
+  const supabase = getSupabase();
   setCors(req, res);
 
   if (req.method === 'OPTIONS') return res.status(200).end();

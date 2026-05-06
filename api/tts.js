@@ -25,7 +25,7 @@ const LANG_MAP = {
   'en-us': 'en', 'en-gb': 'en', 'fr-fr': 'fr',
 };
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
   setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET')     return res.status(405).end();

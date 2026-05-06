@@ -1,0 +1,16 @@
+name = "sitt-backend"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Variables non-sensibles (les secrets se configurent via: wrangler secret put NOM)
+[vars]
+NODE_NO_WARNINGS = "1"
+
+# Pour configurer les secrets :
+# wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_SECRET_KEY
+# wrangler secret put GEMINI_API_KEY
+# wrangler secret put LEMON_SQUEEZY_WEBHOOK_SECRET
+# wrangler secret put RESEND_API_KEY
+# wrangler secret put GOOGLE_TTS_API_KEY   (optionnel)

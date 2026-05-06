@@ -1,12 +1,18 @@
 {
   "name": "screen-text-tool-backend",
   "version": "2.0.0",
-  "description": "Backend API pour Screen Text Tool",
-  "engines": {
-    "node": "20.x"
+  "description": "SITT Backend — Cloudflare Workers",
+  "type": "module",
+  "scripts": {
+    "dev":    "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail":   "wrangler tail"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",
     "resend": "^3.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.92.0"
   }
 }

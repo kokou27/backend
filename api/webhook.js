@@ -1,10 +1,5 @@
-const crypto = require('crypto');
-const { createClient } = require('@supabase/supabase-js');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET_KEY
-);
+import crypto from 'node:crypto';
+import { getSupabase } from '../_lib/supabase.js';
 
 const CREDITS_MAP = {
   '1406743': 1000,  // Pack Découverte — 4,99$
@@ -114,9 +109,7 @@ async function incrementCreditsAtomic(userId, amount) {
   return getUserBalanceById(userId);
 }
 
-module.exports.config = {
-  api: { bodyParser: false },
-};
+// CF Workers: bodyParser not needed (handled by worker.js compat layer)
 
 function getRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -138,10 +131,11 @@ function extractVariantId(payload) {
   return '';
 }
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
+  const supabase = getSupabase();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const rawBody = await getRawBody(req);
+  const rawBody = req.rawBody || '';
   const signature = req.headers['x-signature'];
   const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
 

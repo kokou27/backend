@@ -1,6 +1,6 @@
-const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { Resend } from 'resend';
+let _resend = null;
+const getResend = () => { if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY); return _resend; };
 
 function setCors(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -8,7 +8,8 @@ function setCors(req, res) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
+    const resend = getResend();
     setCors(req, res);
 
     if (req.method === 'OPTIONS') return res.status(200).end();
