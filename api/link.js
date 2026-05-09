@@ -11,7 +11,7 @@ function setCors(req, res) {
 }
 
 // ✅ URL de confirmation — pointe vers un nouvel endpoint /api/confirm-link
-const BACKEND_URL = 'https://backend-gamma-mocha-87.vercel.app';
+const BACKEND_URL = 'https://backend.kokoukoumassi27.workers.dev';
 
 async function ensureSecretToken(userId, existingToken) {
   if (existingToken) return existingToken;

@@ -6,6 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 # Variables non-sensibles (les secrets se configurent via: wrangler secret put NOM)
 [vars]
 NODE_NO_WARNINGS = "1"
+BUY_BUTTON_ENABLED = "true"
+DEV_PRO_ENABLED = "false"
 
 # Pour configurer les secrets :
 # wrangler secret put SUPABASE_URL

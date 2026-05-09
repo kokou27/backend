@@ -2,10 +2,16 @@ import crypto from 'node:crypto';
 import { getSupabase } from '../_lib/supabase.js';
 
 const CREDITS_MAP = {
-  '1406743': 1000,  // Pack Découverte — 4,99$
-  '1406715': 3000,  // Pack Standard   — 9,99$
-  '1406774': 10000, // Pack Pro          — 19,99$
-  '1345390': 1000,  // Variant de test Lemon Squeezy
+  '1033500': 1000,  // Pack Découverte — 4,99$ (prod)
+  '1033534': 3000,  // Pack Standard   — 9,99$ (prod)
+  '1033536': 10000, // Pack Pro        — 19,99$ (prod)
+  '1036925': 1000,  // Pack Découverte — test
+  '1036927': 3000,  // Pack Standard   — test
+  '1036926': 10000, // Pack Pro        — test
+  '1626299': 1000,  // Pack Découverte  — test
+  '1626300': 10000, // Pack Pro         — test
+  '1626301': 3000,  // Pack Standard   — test
+  '1345390': 1000,  // Ancien variant de test
 };
 
 function isUniqueViolation(error) {
@@ -21,6 +27,7 @@ function safeNumber(value, fallback = 0) {
 }
 
 async function getUserBalanceById(userId) {
+  const supabase = getSupabase();
   const { data, error } = await supabase
     .from('users')
     .select('credit_balance')
@@ -37,6 +44,7 @@ async function getUserBalanceById(userId) {
 }
 
 async function adjustCreditsWithOptimisticRetry(userId, amountInput, maxAttempts = 3) {
+  const supabase = getSupabase();
   const delta = Math.floor(safeNumber(amountInput, 0));
   if (delta === 0) {
     return getUserBalanceById(userId);
@@ -87,6 +95,7 @@ async function adjustCreditsWithOptimisticRetry(userId, amountInput, maxAttempts
 }
 
 async function incrementCreditsAtomic(userId, amount) {
+  const supabase = getSupabase();
   const amountInput = Math.floor(safeNumber(amount, 0));
   if (amountInput === 0) {
     return getUserBalanceById(userId);
@@ -157,11 +166,13 @@ export default async (req, res) => {
 
   if (event !== 'order_created') return res.status(200).json({ received: true, skipped: true });
 
-  const order = payload?.data?.attributes;
-  const orderId = String(payload?.data?.id || '');
-  const email = order?.user_email?.toLowerCase().trim();
-  const status = order?.status;
-  const variantId = extractVariantId(payload);
+  const order      = payload?.data?.attributes;
+  const orderId    = String(payload?.data?.id || '');
+  const email      = order?.user_email?.toLowerCase().trim();
+  const status     = order?.status;
+  const variantId  = extractVariantId(payload);
+  // extension_id passé via checkout[custom][extension_id]
+  const extensionId = String(payload?.meta?.custom_data?.extension_id || '').trim();
 
   if (status !== 'paid' || !email || !variantId) {
     return res.status(200).json({ received: true, skipped: true });
@@ -170,7 +181,7 @@ export default async (req, res) => {
   const creditsToAdd = CREDITS_MAP[variantId];
   if (!creditsToAdd) return res.status(400).json({ error: `Variant inconnu: ${variantId}` });
 
-  // ✅ 1. DÉDUPLICATION (Verrouillage par ID de commande)
+  // ✅ 1. DÉDUPLICATION
   const { error: lockError } = await supabase
     .from('processed_orders')
     .insert([{ order_id: orderId }]);
@@ -180,36 +191,56 @@ export default async (req, res) => {
       console.warn(`⚠️ Commande ${orderId} déjà traitée.`);
       return res.status(200).json({ success: true, reason: 'already_processed' });
     }
-
     console.error('Erreur verrouillage processed_orders:', lockError);
     return res.status(500).json({ error: 'Erreur de verrouillage commande' });
   }
 
-  // ✅ 2. TRAITEMENT DES CRÉDITS
-  const { data: user } = await supabase
-    .from('users')
-    .select('id, credit_balance')
-    .eq('email', email)
-    .single();
+  // ✅ 2. RECHERCHE UTILISATEUR — extension_id en priorité, email en fallback
+  let user = null;
 
+  // 2a. Chercher par extension_id (le plus fiable — identifie le navigateur exact)
+  if (extensionId) {
+    const { data } = await supabase
+      .from('users')
+      .select('id, credit_balance, email')
+      .eq('extension_id', extensionId)
+      .maybeSingle();
+    if (data) {
+      user = data;
+      // Mettre à jour l'email si pas encore défini
+      if (!data.email && email) {
+        await supabase.from('users').update({ email }).eq('id', data.id);
+      }
+      console.log(`🔍 User trouvé par extension_id: ${extensionId}`);
+    }
+  }
+
+  // 2b. Fallback : chercher par email
+  if (!user && email) {
+    const { data } = await supabase
+      .from('users')
+      .select('id, credit_balance, email')
+      .eq('email', email)
+      .maybeSingle();
+    if (data) {
+      user = data;
+      console.log(`🔍 User trouvé par email: ${email}`);
+    }
+  }
+
+  // ✅ 3. TRAITEMENT DES CRÉDITS
   if (user) {
-    // APPEL SQL ATOMIQUE : On demande à la DB de faire l'addition
     const incrementResult = await incrementCreditsAtomic(user.id, creditsToAdd);
     if (incrementResult.error) {
       console.error('Erreur credit webhook increment:', incrementResult.error);
-      const { error: unlockError } = await supabase.from('processed_orders').delete().eq('order_id', orderId);
-      if (unlockError) {
-        console.error('Erreur rollback processed_orders après échec crédit:', unlockError);
-      }
+      await supabase.from('processed_orders').delete().eq('order_id', orderId);
       return res.status(500).json({ error: 'Impossible de crediter le compte' });
     }
 
-    const secretToken = crypto.randomUUID();
-
-    // Ajouter le token si pas encore défini (ne pas écraser un token existant)
+    // Ajouter le secret_token si absent
     await supabase
       .from('users')
-      .update({ secret_token: secretToken })
+      .update({ secret_token: crypto.randomUUID() })
       .eq('id', user.id)
       .is('secret_token', null);
 
@@ -222,39 +253,33 @@ export default async (req, res) => {
       type: 'purchase',
       amount: creditsToAdd,
       credit_balance_after: newBalance,
-      metadata: { variant_id: variantId, order_id: orderId },
+      metadata: { variant_id: variantId, order_id: orderId, extension_id: extensionId },
       created_at: new Date().toISOString(),
     }]);
 
-    if (txError) {
-      // Les credits sont deja attribues: ne pas renvoyer 500 pour eviter un double-credit sur retry webhook.
-      console.error('Erreur insertion transaction webhook (non bloquante):', txError);
-    }
+    if (txError) console.error('Erreur insertion transaction webhook (non bloquante):', txError);
 
-    console.log(`✅ Crédité : ${email} (+${creditsToAdd})`);
+    console.log(`✅ Crédité : ${email || extensionId} (+${creditsToAdd}) → solde: ${newBalance}`);
+
   } else {
-    const secretToken = crypto.randomUUID();
-
-    // Création nouvel utilisateur
+    // 3b. Nouveau compte : créer avec extension_id ET email
     const { error: createUserError } = await supabase.from('users').insert([{
-      email: email,
-      credit_balance: creditsToAdd,
-      secret_token: secretToken,
-      scans_today: 0,
+      email:             email,
+      extension_id:      extensionId || null,
+      credit_balance:    creditsToAdd,
+      secret_token:      crypto.randomUUID(),
+      scans_today:       0,
       scans_this_minute: 0,
-      created_at: new Date().toISOString()
+      created_at:        new Date().toISOString(),
     }]);
 
     if (createUserError) {
       console.error('Erreur creation utilisateur webhook:', createUserError);
-      const { error: unlockError } = await supabase.from('processed_orders').delete().eq('order_id', orderId);
-      if (unlockError) {
-        console.error('Erreur rollback processed_orders après échec création user:', unlockError);
-      }
+      await supabase.from('processed_orders').delete().eq('order_id', orderId);
       return res.status(500).json({ error: 'Impossible de creer le compte utilisateur' });
     }
 
-    console.log(`✅ Nouveau compte : ${email}`);
+    console.log(`✅ Nouveau compte : ${email} (extension: ${extensionId || 'inconnu'})`);
   }
 
   return res.status(200).json({ success: true });

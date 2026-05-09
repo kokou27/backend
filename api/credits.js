@@ -37,7 +37,8 @@ export default async (req, res) => {
     });
   }
 
-  if (user.secret_token && (!secretToken || user.secret_token !== secretToken)) {
+  // Rejeter seulement si un MAUVAIS token est fourni (pas s'il est absent)
+  if (user.secret_token && secretToken && user.secret_token !== secretToken) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
