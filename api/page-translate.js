@@ -1323,7 +1323,8 @@ export default async (req, res) => {
     const lastMinute = user.last_scan_minute ? new Date(user.last_scan_minute) : null;
     const secondsElapsed = lastMinute ? (now - lastMinute) / 1000 : 999;
 
-    if (isStreamFirstPart && secondsElapsed < 60 && (user.scans_this_minute || 0) >= 3) {
+    const perMinuteLimit = (user.credit_balance || 0) > 0 ? 15 : 3;
+    if (isStreamFirstPart && secondsElapsed < 60 && (user.scans_this_minute || 0) >= perMinuteLimit) {
         return res.status(429).json({
             error: 'rate_limit',
             message: 'Trop rapide - attendez 1 minute.',
