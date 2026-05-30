@@ -76,13 +76,14 @@ export default async (req, res) => {
 
     const today = new Date().toISOString().split('T')[0];
 
+    // INSERT seulement si n'existe pas — ne jamais remettre scans_today à 0
     await supabase.from('trial_usage').upsert([{
         extension_id: extensionId,
         scans_today: 0,
         last_scan_date: today,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-    }], { onConflict: 'extension_id' });
+    }], { onConflict: 'extension_id', ignoreDuplicates: true });
 
     const { data: atomicResult, error: rpcError } = await supabase
         .rpc('increment_trial_scan', {
