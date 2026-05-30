@@ -321,7 +321,8 @@ export default async (req, res) => {
   const newScansMinute = (secondsElapsed < 60) ? (user.scans_this_minute || 0) + 1 : 1;
   const newBalance = user.credit_balance - 1;
 
-  const { error: updateError } = await supabase
+  // Verrou optimiste : n'update que si credit_balance n'a pas changé (anti race-condition)
+  const { data: updatedRows, error: updateError } = await supabase
     .from('users')
     .update({
       credit_balance: newBalance,
@@ -331,11 +332,18 @@ export default async (req, res) => {
       last_scan_minute: now.toISOString(),
       updated_at: now.toISOString(),
     })
-    .eq('extension_id', extensionId);
+    .eq('extension_id', extensionId)
+    .eq('credit_balance', user.credit_balance)
+    .select('credit_balance');
 
   if (updateError) {
     console.error('Erreur update crédits:', updateError);
     return res.status(500).json({ error: 'Erreur mise à jour crédits' });
+  }
+
+  // Si 0 lignes affectées → race condition détectée, rejeter la requête
+  if (!updatedRows || updatedRows.length === 0) {
+    return res.status(409).json({ error: 'conflict', message: 'Conflit de requête simultanée, réessayez.' });
   }
 
   // Log transaction (non bloquant)
