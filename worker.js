@@ -21,6 +21,7 @@ import handleActivate     from './api/activate.js';
 import handlePurchase     from './api/purchase.js';
 import handleContact      from './api/contact.js';
 import handleTts          from './api/tts.js';
+import handleBubbleDetect from './api/bubble-detect.js';
 
 // ── ROUTES ──────────────────────────────────────────────────────
 const ROUTES = {
@@ -36,6 +37,7 @@ const ROUTES = {
   '/api/purchase':       handlePurchase,
   '/api/contact':        handleContact,
   '/api/tts':            handleTts,
+  '/api/bubble-detect':  handleBubbleDetect,
 };
 
 const CORS = {
