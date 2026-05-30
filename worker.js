@@ -17,6 +17,7 @@ import handleConfig       from './api/config.js';
 import handleLink         from './api/link.js';
 import handleConfirmLink  from './api/confirm-link.js';
 import handleWebhook      from './api/webhook.js';
+import handleActivate     from './api/activate.js';
 import handlePurchase     from './api/purchase.js';
 import handleContact      from './api/contact.js';
 import handleTts          from './api/tts.js';
@@ -31,6 +32,7 @@ const ROUTES = {
   '/api/link':           handleLink,
   '/api/confirm-link':   handleConfirmLink,
   '/api/webhook':        handleWebhook,
+  '/api/activate':       handleActivate,
   '/api/purchase':       handlePurchase,
   '/api/contact':        handleContact,
   '/api/tts':            handleTts,

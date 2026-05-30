@@ -1,5 +1,41 @@
 import crypto from 'node:crypto';
 import { getSupabase } from '../_lib/supabase.js';
+import { Resend } from 'resend';
+
+let _resend = null;
+const getResend = () => { if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY); return _resend; };
+
+const PACK_NAMES = { 1000: 'Découverte', 3000: 'Standard', 10000: 'Pro' };
+
+async function sendActivationEmail(email, secretToken, creditsAdded) {
+  try {
+    const resend = getResend();
+    const packName = PACK_NAMES[creditsAdded] || `${creditsAdded} crédits`;
+    const from = process.env.RESEND_FROM_EMAIL || 'SITT <onboarding@resend.dev>';
+    await resend.emails.send({
+      from,
+      to: email,
+      subject: `Votre code d'activation SITT — Pack ${packName}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;">
+          <h2 style="color:#7c3aed;">Merci pour votre achat !</h2>
+          <p>Votre pack <strong>${packName}</strong> (${creditsAdded} crédits) est prêt.</p>
+          <p>Entrez ce code dans votre extension SITT :</p>
+          <div style="background:#f4f4f5;border-radius:8px;padding:16px 24px;margin:24px 0;font-family:monospace;font-size:18px;letter-spacing:2px;text-align:center;color:#18181b;">
+            ${secretToken}
+          </div>
+          <p style="font-size:13px;color:#71717a;">Dans l'extension : ouvrez la sidebar → Paramètres → "Activer mon code".</p>
+          <p style="font-size:13px;color:#71717a;">Ce code est lié à votre email. Si vous réinstallez Chrome, entrez à nouveau ce code pour récupérer vos crédits.</p>
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0;">
+          <p style="font-size:12px;color:#a1a1aa;">SITT — <a href="https://sitt-landing.pages.dev">sitt-landing.pages.dev</a></p>
+        </div>
+      `,
+    });
+    console.log(`📧 Email activation envoyé à ${email}`);
+  } catch (err) {
+    console.error('Erreur envoi email activation:', err.message);
+  }
+}
 
 const CREDITS_MAP = {
   '1033500': 1000,  // Pack Découverte — 4,99$ (prod)
@@ -261,6 +297,12 @@ export default async (req, res) => {
 
     console.log(`✅ Crédité : ${email || extensionId} (+${creditsToAdd}) → solde: ${newBalance}`);
 
+    // Récupérer le secret_token pour l'envoyer par email
+    const { data: updatedUser } = await supabase.from('users').select('secret_token').eq('id', user.id).maybeSingle();
+    if (email && updatedUser?.secret_token) {
+      await sendActivationEmail(email, updatedUser.secret_token, creditsToAdd);
+    }
+
   } else {
     // 3b. Nouveau compte : créer avec extension_id ET email
     const { error: createUserError } = await supabase.from('users').insert([{
@@ -280,6 +322,12 @@ export default async (req, res) => {
     }
 
     console.log(`✅ Nouveau compte : ${email} (extension: ${extensionId || 'inconnu'})`);
+
+    // Récupérer le secret_token du nouveau compte pour l'envoyer par email
+    const { data: newUser } = await supabase.from('users').select('secret_token').eq('email', email).maybeSingle();
+    if (email && newUser?.secret_token) {
+      await sendActivationEmail(email, newUser.secret_token, creditsToAdd);
+    }
   }
 
   return res.status(200).json({ success: true });
