@@ -96,6 +96,11 @@ export default async (req, res) => {
         return res.status(500).json({ error: 'Erreur vérification limite trial' });
     }
 
+    if (!atomicResult || typeof atomicResult.allowed === 'undefined') {
+        console.error('RPC increment_trial_scan: résultat inattendu', atomicResult);
+        return res.status(500).json({ error: 'Erreur vérification limite trial' });
+    }
+
     if (!atomicResult.allowed) {
         return res.status(402).json({
             error: 'trial_limit',

@@ -1,5 +1,7 @@
 import { getSupabase } from '../_lib/supabase.js';
 
+const MAX_ACTIVATIONS = 3; // Même code utilisable sur max 3 appareils (reinstall inclus)
+
 export default async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -12,7 +14,7 @@ export default async (req, res) => {
   if (!activation_code || typeof activation_code !== 'string' || activation_code.length < 10) {
     return res.status(400).json({ error: 'Code d\'activation invalide' });
   }
-  if (!extension_id || typeof extension_id !== 'string') {
+  if (!extension_id || typeof extension_id !== 'string' || extension_id.length < 5) {
     return res.status(400).json({ error: 'extension_id requis' });
   }
 
@@ -21,16 +23,35 @@ export default async (req, res) => {
   // Trouver le compte par secret_token
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, credit_balance, email, extension_id')
+    .select('id, credit_balance, email, extension_id, activation_count')
     .eq('secret_token', activation_code.trim())
     .maybeSingle();
 
   if (error) return res.status(500).json({ error: 'Erreur serveur' });
-  if (!user) return res.status(404).json({ error: 'Code invalide ou expiré', message: 'Code d\'activation introuvable. Vérifiez votre email.' });
+  if (!user) return res.status(404).json({
+    error: 'Code invalide',
+    message: 'Code d\'activation introuvable. Vérifiez votre email.',
+  });
 
-  // Lier ce code à l'extension_id actuel
+  // Si déjà activé sur ce même appareil → OK sans compter
+  const isSameDevice = user.extension_id === extension_id;
+  const activationCount = user.activation_count || 0;
+
+  // Bloquer si trop d'appareils différents (fraude probable)
+  if (!isSameDevice && activationCount >= MAX_ACTIVATIONS) {
+    return res.status(403).json({
+      error: 'activation_limit',
+      message: `Ce code a déjà été activé sur ${MAX_ACTIVATIONS} appareils. Contactez le support.`,
+    });
+  }
+
+  // Lier ce code à l'extension_id actuel, incrémenter le compteur si nouvel appareil
   await supabase.from('users')
-    .update({ extension_id, updated_at: new Date().toISOString() })
+    .update({
+      extension_id,
+      activation_count: isSameDevice ? activationCount : activationCount + 1,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', user.id);
 
   return res.status(200).json({
