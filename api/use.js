@@ -27,17 +27,33 @@ function cors(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-function buildGeminiPrompt(lang, targetLang) {
+function buildGeminiPrompt(lang, targetLang, feature) {
   const langNames = { eng:'English', fra:'French', jpn:'Japanese', jpn_vert:'Japanese', kor:'Korean', chi_sim:'Chinese', chi_tra:'Chinese', spa:'Spanish', deu:'German', ara:'Arabic', por:'Portuguese', rus:'Russian', ita:'Italian' };
   const targetNames = { en:'English', fr:'French', ja:'Japanese', ko:'Korean', zh:'Chinese', es:'Spanish', de:'German', ar:'Arabic', pt:'Portuguese', ru:'Russian', it:'Italian' };
   const src = langNames[lang] || 'auto-detect';
   const tgt = targetNames[targetLang] || 'French';
-  return `You are a manga/comic translator. Read ALL text visible in this image.
-IGNORE any website UI, navigation bars, buttons, or browser interface — only extract text drawn inside speech bubbles, captions, or comic panels.
-Detect the source language automatically if not ${src}.
-Translate every text region from ${src} to ${tgt}.
-Return ONLY valid JSON: { "text": "original text joined", "translated": "translated text" }
-If no text found: { "text": "", "translated": "" }`;
+
+  if (feature === 'smart_click' || feature === 'zone_ai') {
+    return `You are a manga/comic speech bubble translator.
+This image shows a cropped portion of a manga/comic page — it may contain one or more speech bubbles with text inside them.
+Your task:
+1. Read ALL handwritten or printed text visible anywhere in the image (inside bubbles, captions, sound effects).
+2. Join all found text into a single string for "text".
+3. Translate that text from ${src} to ${tgt} for "translated".
+4. If the image has absolutely no text at all, return { "text": "", "translated": "" }.
+
+CRITICAL: Do NOT return empty if there is any text visible, even partially. Include all text you can read.
+Return ONLY valid JSON with no markdown: { "text": "...", "translated": "..." }`;
+  }
+
+  // ocr_quality — full page or selection
+  return `You are a manga/comic OCR and translator.
+Read ALL text visible in this image: speech bubbles, captions, sound effects, titles.
+IGNORE website UI, navigation bars, buttons — only extract text that is part of the comic artwork.
+Detect source language automatically (${src} hint).
+Translate everything to ${tgt}.
+Join all text into one string. Return ONLY valid JSON: { "text": "original", "translated": "translated" }
+If truly no text: { "text": "", "translated": "" }`;
 }
 
 export default async (req, res) => {
@@ -156,7 +172,7 @@ export default async (req, res) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [
-            { text: buildGeminiPrompt(lang, targetLang) },
+            { text: buildGeminiPrompt(lang, targetLang, feature) },
             { inline_data: { mime_type: 'image/jpeg', data: imageBase64 } }
           ]}],
           generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
