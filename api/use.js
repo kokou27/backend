@@ -8,7 +8,7 @@ import { getSupabase } from '../_lib/supabase.js';
 
 const DAILY_FREE_LIMIT = parseInt(process.env.DAILY_TRIAL_LIMIT || '2', 10);
 const AI_FEATURES = ['smart_click', 'zone_ai', 'ocr_quality'];
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17';
+const GEMINI_MODEL = process.env.GEMINI_MODEL_DEFAULT || 'gemini-2.5-flash';
 const MIN_VERSION = '2.4.0'; // Versions antérieures utilisaient l'ancienne architecture
 
 function compareVersion(a, b) {
@@ -175,7 +175,11 @@ export default async (req, res) => {
             { text: buildGeminiPrompt(lang, targetLang, feature) },
             { inline_data: { mime_type: 'image/jpeg', data: imageBase64 } }
           ]}],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 1024,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       }
     );
