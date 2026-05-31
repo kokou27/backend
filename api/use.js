@@ -7,7 +7,7 @@
 import { getSupabase } from '../_lib/supabase.js';
 
 const DAILY_FREE_LIMIT = parseInt(process.env.DAILY_TRIAL_LIMIT || '2', 10);
-const AI_FEATURES = ['smart_click', 'zone_ai'];
+const AI_FEATURES = ['smart_click', 'zone_ai', 'ocr_quality'];
 const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17';
 const MIN_VERSION = '2.4.0'; // Versions antérieures utilisaient l'ancienne architecture
 
