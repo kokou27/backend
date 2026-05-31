@@ -9,6 +9,17 @@ import { getSupabase } from '../_lib/supabase.js';
 const DAILY_FREE_LIMIT = parseInt(process.env.DAILY_TRIAL_LIMIT || '2', 10);
 const AI_FEATURES = ['smart_click', 'zone_ai'];
 const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17';
+const MIN_VERSION = '2.4.0'; // Versions antérieures utilisaient l'ancienne architecture
+
+function compareVersion(a, b) {
+  const pa = String(a || '0').split('.').map(Number);
+  const pb = String(b || '0').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+  }
+  return 0;
+}
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -34,7 +45,16 @@ export default async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { extension_id, feature, imageBase64, lang = 'eng', targetLang = 'fr' } = req.body || {};
+  const { extension_id, feature, imageBase64, lang = 'eng', targetLang = 'fr', version } = req.body || {};
+
+  // ── Check version minimum ────────────────────────────────────────────────
+  if (version && compareVersion(version, MIN_VERSION) < 0) {
+    return res.status(426).json({
+      error: 'UPDATE_REQUIRED',
+      message: `Mettez à jour SITT (v${MIN_VERSION}+) pour continuer à utiliser la traduction IA.`,
+      min_version: MIN_VERSION,
+    });
+  }
 
   // ── Validation inputs ────────────────────────────────────────────────────
   if (!extension_id || typeof extension_id !== 'string' || extension_id.length < 5) {
