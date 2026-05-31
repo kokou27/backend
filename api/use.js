@@ -185,12 +185,38 @@ export default async (req, res) => {
     );
 
     const geminiData = await geminiRes.json();
-    const raw = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Log Gemini errors for debugging
+    if (!geminiRes.ok) {
+      console.error('[use.js] Gemini HTTP error:', geminiRes.status, JSON.stringify(geminiData).slice(0, 200));
+      return res.status(502).json({ error: 'GEMINI_ERROR', message: `Gemini error ${geminiRes.status}` });
+    }
+
+    // Check safety blocking
+    const blockReason = geminiData?.promptFeedback?.blockReason;
+    if (blockReason) {
+      console.warn('[use.js] Gemini blocked:', blockReason);
+      // Return safe fallback for blocked content
+      return res.status(200).json({ success: true, text: '', translated: '', blocked: true });
+    }
+
+    const candidate = geminiData?.candidates?.[0];
+    if (!candidate || candidate.finishReason === 'SAFETY') {
+      console.warn('[use.js] Gemini no candidate or safety stop');
+      return res.status(200).json({ success: true, text: '', translated: '', blocked: true });
+    }
+
+    const raw = candidate?.content?.parts?.[0]?.text || '';
+    console.log('[use.js] Gemini raw response:', raw.slice(0, 100));
+
     const jsonStr = raw.replace(/```json\n?/g, '').replace(/```/g, '').trim();
 
     let result = { text: '', translated: '' };
-    try { result = JSON.parse(jsonStr); } catch (_) {
-      result = { text: raw, translated: raw };
+    try {
+      result = JSON.parse(jsonStr);
+    } catch (_) {
+      // Raw text, not JSON — use directly
+      if (raw.trim()) result = { text: raw.trim(), translated: raw.trim() };
     }
 
     // Récupérer le solde à jour
