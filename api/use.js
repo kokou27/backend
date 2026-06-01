@@ -5,6 +5,7 @@
  * Never trust the client for entitlements.
  */
 import { getSupabase } from '../_lib/supabase.js';
+import { normalizeInstallId } from '../_lib/install-id.js';
 
 const DAILY_FREE_LIMIT = parseInt(process.env.DAILY_TRIAL_LIMIT || '2', 10);
 const AI_FEATURES = ['smart_click', 'zone_ai', 'ocr_quality'];
@@ -28,8 +29,8 @@ function cors(res) {
 }
 
 function buildGeminiPrompt(lang, targetLang, feature) {
-  const langNames = { eng:'English', fra:'French', jpn:'Japanese', jpn_vert:'Japanese', kor:'Korean', chi_sim:'Chinese', chi_tra:'Chinese', spa:'Spanish', deu:'German', ara:'Arabic', por:'Portuguese', rus:'Russian', ita:'Italian' };
-  const targetNames = { en:'English', fr:'French', ja:'Japanese', ko:'Korean', zh:'Chinese', es:'Spanish', de:'German', ar:'Arabic', pt:'Portuguese', ru:'Russian', it:'Italian' };
+  const langNames = { eng: 'English', fra: 'French', jpn: 'Japanese', jpn_vert: 'Japanese', kor: 'Korean', chi_sim: 'Chinese', chi_tra: 'Chinese', spa: 'Spanish', deu: 'German', ara: 'Arabic', por: 'Portuguese', rus: 'Russian', ita: 'Italian' };
+  const targetNames = { en: 'English', fr: 'French', ja: 'Japanese', ko: 'Korean', zh: 'Chinese', es: 'Spanish', de: 'German', ar: 'Arabic', pt: 'Portuguese', ru: 'Russian', it: 'Italian' };
   const src = langNames[lang] || 'auto-detect';
   const tgt = targetNames[targetLang] || 'French';
 
@@ -61,10 +62,19 @@ export default async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { extension_id, feature, imageBase64, lang = 'eng', targetLang = 'fr', version } = req.body || {};
+  const { extension_id: extension_id_raw, feature, imageBase64, lang = 'eng', targetLang = 'fr', version } = req.body || {};
+  const extension_id = normalizeInstallId(extension_id_raw);
 
   // ── Check version minimum ────────────────────────────────────────────────
-  if (version && compareVersion(version, MIN_VERSION) < 0) {
+  if (!version || typeof version !== 'string') {
+    return res.status(426).json({
+      error: 'VERSION_REQUIRED',
+      message: `Update SITT to v${MIN_VERSION}+`,
+      min_version: MIN_VERSION,
+    });
+  }
+
+  if (compareVersion(version, MIN_VERSION) < 0) {
     return res.status(426).json({
       error: 'UPDATE_REQUIRED',
       message: `Mettez à jour SITT (v${MIN_VERSION}+) pour continuer à utiliser la traduction IA.`,
@@ -73,8 +83,8 @@ export default async (req, res) => {
   }
 
   // ── Validation inputs ────────────────────────────────────────────────────
-  if (!extension_id || typeof extension_id !== 'string' || extension_id.length < 5) {
-    return res.status(400).json({ error: 'extension_id requis' });
+  if (!extension_id) {
+    return res.status(400).json({ error: 'Invalid install ID (expected 32 hex chars)' });
   }
   if (!AI_FEATURES.includes(feature)) {
     return res.status(400).json({ error: 'feature invalide', valid: AI_FEATURES });
@@ -171,10 +181,12 @@ export default async (req, res) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [
-            { text: buildGeminiPrompt(lang, targetLang, feature) },
-            { inline_data: { mime_type: 'image/jpeg', data: imageBase64 } }
-          ]}],
+          contents: [{
+            parts: [
+              { text: buildGeminiPrompt(lang, targetLang, feature) },
+              { inline_data: { mime_type: 'image/jpeg', data: imageBase64 } }
+            ]
+          }],
           generationConfig: {
             temperature: 0.1,
             maxOutputTokens: 1024,
