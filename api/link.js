@@ -4,12 +4,6 @@ import { getSupabase } from '../_lib/supabase.js';
 let _resend = null;
 const getResend = () => { if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY); return _resend; };
 
-function setCors(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
-
 // ✅ URL de confirmation — pointe vers un nouvel endpoint /api/confirm-link
 const BACKEND_URL = 'https://backend.kokoukoumassi27.workers.dev';
 
@@ -39,7 +33,6 @@ async function ensureSecretToken(userId, existingToken) {
 export default async (req, res) => {
   const supabase = getSupabase();
   const resend   = getResend();
-  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
