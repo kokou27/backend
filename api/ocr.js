@@ -1,10 +1,5 @@
 import { getSupabase } from '../_lib/supabase.js';
-
-function setCors(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
+import { normalizeInstallId } from '../_lib/install-id.js';
 
 // ── Langue OCR (pour Tesseract / Gemini OCR) ──────────────────────────────
 const OCR_LANG_NAMES = {
@@ -234,11 +229,15 @@ async function incrementCreditsAtomic(userId, amount) {
 
 export default async (req, res) => {
   const supabase = getSupabase();
-  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // ── Paramètres reçus ─────────────────────────────────────────────────────
+  return res.status(410).json({
+    error: 'DEPRECATED_ROUTE',
+    message: 'Mettez à jour SITT (v2.4.6+). Toutes les requêtes IA passent par POST /api/use.',
+  });
+
+  // ── Paramètres reçus (legacy — route désactivée) ─────────────────────────
   const {
     extensionId,
     imageBase64,
