@@ -1,8 +1,4 @@
-function setCors(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
+import { normalizeInstallId } from '../_lib/install-id.js';
 
 function parseCsvEnv(value) {
   if (!value || typeof value !== 'string') return [];
@@ -13,21 +9,20 @@ function parseCsvEnv(value) {
 }
 
 export default async (req, res) => {
-  setCors(req, res);
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const extensionId = typeof req.query?.extensionId === 'string'
-    ? req.query.extensionId.trim()
-    : '';
+  const installId = normalizeInstallId(req.query?.installId || req.query?.extensionId);
 
   const devProEnabled = process.env.DEV_PRO_ENABLED === 'true';
-  const devProAllowlist = parseCsvEnv(process.env.DEV_PRO_EXTENSION_IDS);
+  const devProAllowlist = parseCsvEnv(
+    process.env.DEV_PRO_INSTALL_IDS || process.env.DEV_PRO_EXTENSION_IDS
+  );
   const devProActive = Boolean(
     devProEnabled
-    && extensionId
-    && devProAllowlist.includes(extensionId)
+    && installId
+    && devProAllowlist.includes(installId)
   );
   const rawDevProEmail = typeof process.env.DEV_PRO_EMAIL === 'string'
     ? process.env.DEV_PRO_EMAIL.trim()
