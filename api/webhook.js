@@ -177,7 +177,6 @@ function extractVariantId(payload) {
 }
 
 export default async (req, res) => {
-  const supabase = getSupabase();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const rawBody = req.rawBody || '';
@@ -202,11 +201,11 @@ export default async (req, res) => {
 
   if (event !== 'order_created') return res.status(200).json({ received: true, skipped: true });
 
-  const order      = payload?.data?.attributes;
-  const orderId    = String(payload?.data?.id || '');
-  const email      = order?.user_email?.toLowerCase().trim();
-  const status     = order?.status;
-  const variantId  = extractVariantId(payload);
+  const order = payload?.data?.attributes;
+  const orderId = String(payload?.data?.id || '');
+  const email = order?.user_email?.toLowerCase().trim();
+  const status = order?.status;
+  const variantId = extractVariantId(payload);
   // extension_id passé via checkout[custom][extension_id]
   const extensionId = String(payload?.meta?.custom_data?.extension_id || '').trim();
 
@@ -306,13 +305,13 @@ export default async (req, res) => {
   } else {
     // 3b. Nouveau compte : créer avec extension_id ET email
     const { error: createUserError } = await supabase.from('users').insert([{
-      email:             email,
-      extension_id:      extensionId || null,
-      credit_balance:    creditsToAdd,
-      secret_token:      crypto.randomUUID(),
-      scans_today:       0,
+      email: email,
+      extension_id: extensionId || null,
+      credit_balance: creditsToAdd,
+      secret_token: crypto.randomUUID(),
+      scans_today: 0,
       scans_this_minute: 0,
-      created_at:        new Date().toISOString(),
+      created_at: new Date().toISOString(),
     }]);
 
     if (createUserError) {
