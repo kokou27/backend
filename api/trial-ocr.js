@@ -1,10 +1,5 @@
 import { getSupabase } from '../_lib/supabase.js';
-
-function setCors(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
+import { normalizeInstallId } from '../_lib/install-id.js';
 
 // Nombre de traductions IA gratuites par jour (configurable via env var)
 const DAILY_TRIAL_LIMIT = parseInt(process.env.DAILY_TRIAL_LIMIT || '2', 10);
@@ -35,12 +30,11 @@ function normalizeOcrLangCode(lang) {
 
 export default async (req, res) => {
   const supabase = getSupabase();
-    setCors(req, res);
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const {
-        extensionId,
+        extensionId: extensionIdRaw,
         imageBase64,
         lang = 'eng',
         mode = 'ocr_only',
@@ -48,8 +42,9 @@ export default async (req, res) => {
         secretToken,
     } = req.body;
 
+    const extensionId = normalizeInstallId(extensionIdRaw);
     if (!extensionId || !imageBase64) {
-        return res.status(400).json({ error: 'extensionId et imageBase64 requis' });
+        return res.status(400).json({ error: 'extensionId invalide ou imageBase64 requis' });
     }
 
     if (!imageBase64 || typeof imageBase64 !== 'string' || imageBase64.length > 4_000_000) {
