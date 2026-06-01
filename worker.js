@@ -10,84 +10,98 @@
  */
 
 import handlePageTranslate from './api/page-translate.js';
-import handleOcr          from './api/ocr.js';
-import handleTrialOcr     from './api/trial-ocr.js';
-import handleCredits      from './api/credits.js';
-import handleConfig       from './api/config.js';
-import handleLink         from './api/link.js';
-import handleConfirmLink  from './api/confirm-link.js';
-import handleWebhook      from './api/webhook.js';
-import handleActivate     from './api/activate.js';
-import handlePurchase     from './api/purchase.js';
-import handleContact      from './api/contact.js';
-import handleTts          from './api/tts.js';
+import handleOcr from './api/ocr.js';
+import handleTrialOcr from './api/trial-ocr.js';
+import handleCredits from './api/credits.js';
+import handleConfig from './api/config.js';
+import handleLink from './api/link.js';
+import handleConfirmLink from './api/confirm-link.js';
+import handleWebhook from './api/webhook.js';
+import handleActivate from './api/activate.js';
+import handlePurchase from './api/purchase.js';
+import handleContact from './api/contact.js';
+import handleTts from './api/tts.js';
 import handleBubbleDetect from './api/bubble-detect.js';
-import handleUse          from './api/use.js';
+import handleUse from './api/use.js';
 
 // ── ROUTES ──────────────────────────────────────────────────────
 const ROUTES = {
   '/api/page-translate': handlePageTranslate,
-  '/api/ocr':            handleOcr,
-  '/api/trial-ocr':      handleTrialOcr,
-  '/api/credits':        handleCredits,
-  '/api/config':         handleConfig,
-  '/api/link':           handleLink,
-  '/api/confirm-link':   handleConfirmLink,
-  '/api/webhook':        handleWebhook,
-  '/api/activate':       handleActivate,
-  '/api/purchase':       handlePurchase,
-  '/api/contact':        handleContact,
-  '/api/tts':            handleTts,
-  '/api/bubble-detect':  handleBubbleDetect,
-  '/api/use':            handleUse,
+  '/api/ocr': handleOcr,
+  '/api/trial-ocr': handleTrialOcr,
+  '/api/credits': handleCredits,
+  '/api/config': handleConfig,
+  '/api/link': handleLink,
+  '/api/confirm-link': handleConfirmLink,
+  '/api/webhook': handleWebhook,
+  '/api/activate': handleActivate,
+  '/api/purchase': handlePurchase,
+  '/api/contact': handleContact,
+  '/api/tts': handleTts,
+  '/api/bubble-detect': handleBubbleDetect,
+  '/api/use': handleUse,
 };
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+// ── CORS WHITELIST ──────────────────────────────────────────────
+const ALLOWED_ORIGINS = [
+  'https://sitt-landing.pages.dev',
+  'https://backend.sitt.workers.dev',
+  'chrome-extension://joenimodijoophmdlgpgblkjfgenplgg',  // PROD
+  'chrome-extension://lkiohgjhlhfmehkkfaccmpiooladheob',  // DEV
+];
+
+function buildCorsHeaders(request) {
+  const origin = request.headers.get('origin');
+  const isAllowed = ALLOWED_ORIGINS.includes(origin);
+
+  return {
+    'Access-Control-Allow-Origin': isAllowed ? origin : 'null',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Secret-Token',
+    ...(isAllowed && { 'Access-Control-Max-Age': '3600' }),
+  };
+}
 
 // ── COMPAT : CF Request/Response → Express-like (req, res) ─────
 async function buildReq(request, url) {
-  let body    = {};
+  let body = {};
   let rawBody = '';
   const ct = request.headers.get('content-type') || '';
 
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     rawBody = await request.text(); // lire une fois comme texte brut
     if (ct.includes('application/json') && rawBody) {
-      try { body = JSON.parse(rawBody); } catch {}
+      try { body = JSON.parse(rawBody); } catch { }
     }
   }
 
   return {
-    method:  request.method,
-    url:     url.toString(),
+    method: request.method,
+    url: url.toString(),
     body,
     rawBody, // pour les webhooks qui vérifient la signature HMAC
-    query:   Object.fromEntries(url.searchParams.entries()),
+    query: Object.fromEntries(url.searchParams.entries()),
     headers: new Proxy({}, {
       get: (_, k) => request.headers.get(String(k)),
     }),
   };
 }
 
-function buildRes() {
-  let _status  = 200;
-  let _headers = { ...CORS, 'Content-Type': 'application/json' };
-  let _body    = null;
-  let _done    = false;
+function buildRes(corsHeaders) {
+  let _status = 200;
+  let _headers = { ...corsHeaders, 'Content-Type': 'application/json' };
+  let _body = null;
+  let _done = false;
 
   const res = {
-    status(code)       { _status = code; return res; },
-    setHeader(k, v)    { _headers[k] = String(v); return res; },
-    json(data)         { _body = JSON.stringify(data); _done = true; return res; },
-    send(data)         { _body = data; _done = true; return res; },
-    end(data)          { _body = data ?? null; _done = true; return res; },
+    status(code) { _status = code; return res; },
+    setHeader(k, v) { _headers[k] = String(v); return res; },
+    json(data) { _body = JSON.stringify(data); _done = true; return res; },
+    send(data) { _body = data; _done = true; return res; },
+    end(data) { _body = data ?? null; _done = true; return res; },
     // helpers pour vérifier l'état
-    _isDone:  () => _done,
-    _build:   () => new Response(_body, { status: _status, headers: _headers }),
+    _isDone: () => _done,
+    _build: () => new Response(_body, { status: _status, headers: _headers }),
   };
   return res;
 }
@@ -105,10 +119,11 @@ export default {
     }
 
     const url = new URL(request.url);
+    const corsHeaders = buildCorsHeaders(request);
 
     // 2. CORS preflight
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 200, headers: CORS });
+      return new Response(null, { status: 200, headers: corsHeaders });
     }
 
     // 3. Route
@@ -116,21 +131,26 @@ export default {
     if (!handler) {
       return new Response(JSON.stringify({ error: 'Not Found' }), {
         status: 404,
-        headers: { ...CORS, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // 4. Exécuter le handler avec la couche de compat
     try {
       const req = await buildReq(request, url);
-      const res = buildRes();
+      const res = buildRes(corsHeaders);
       await handler(req, res);
       return res._build();
     } catch (err) {
       console.error('[Worker] Handler error:', err);
-      return new Response(JSON.stringify({ error: 'Internal Server Error', detail: err.message }), {
+      const isProduction = process.env.NODE_NO_WARNINGS === '1'; // Vrai en prod CF
+      const response = { error: 'Internal Server Error' };
+      if (!isProduction) {
+        response.detail = err.message;
+      }
+      return new Response(JSON.stringify(response), {
         status: 500,
-        headers: { ...CORS, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
   },
