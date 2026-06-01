@@ -11,12 +11,6 @@
  * console.cloud.google.com et créer une clé API séparée.
  */
 
-function setCors(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
-
 // Codes langue ISO → codes Google TTS
 const LANG_MAP = {
   fr: 'fr', en: 'en', es: 'es', de: 'de', it: 'it', pt: 'pt',
@@ -26,7 +20,6 @@ const LANG_MAP = {
 };
 
 export default async (req, res) => {
-  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET')     return res.status(405).end();
 
