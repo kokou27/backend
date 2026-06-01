@@ -2,25 +2,19 @@
 // GET /api/credits?extensionId=xxx
 
 import { getSupabase } from '../_lib/supabase.js';
-
-function setCors(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
+import { normalizeInstallId } from '../_lib/install-id.js';
 
 export default async (req, res) => {
   const supabase = getSupabase();
-  setCors(req, res);
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { extensionId } = req.query;
-  const secretToken = req.headers['x-secret-token'] || req.query.secretToken;
+  const extensionId = normalizeInstallId(req.query?.extensionId);
+  const secretToken = req.headers['x-secret-token'];
 
   if (!extensionId) {
-    return res.status(400).json({ error: 'extensionId requis' });
+    return res.status(400).json({ error: 'extensionId invalide (32 hex)' });
   }
 
   const { data: user, error } = await supabase
