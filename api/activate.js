@@ -1,4 +1,5 @@
 import { getSupabase } from '../_lib/supabase.js';
+import { normalizeInstallId } from '../_lib/install-id.js';
 
 const MAX_ACTIVATIONS = 3; // Même code utilisable sur max 3 appareils (reinstall inclus)
 
@@ -9,13 +10,15 @@ export default async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { activation_code, extension_id } = req.body;
+  const { activation_code, extension_id: extension_id_raw } = req.body;
+  const extension_id = normalizeInstallId(extension_id_raw);
 
   if (!activation_code || typeof activation_code !== 'string' || activation_code.length < 10) {
     return res.status(400).json({ error: 'Code d\'activation invalide' });
   }
-  if (!extension_id || typeof extension_id !== 'string' || extension_id.length < 5) {
-    return res.status(400).json({ error: 'extension_id requis' });
+
+  if (!extension_id) {
+    return res.status(400).json({ error: 'Invalid install ID (expected 32 hex chars)' });
   }
 
   const supabase = getSupabase();
