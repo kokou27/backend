@@ -1,10 +1,5 @@
 import { getSupabase } from '../_lib/supabase.js';
-
-function setCors(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
+import { normalizeInstallId } from '../_lib/install-id.js';
 
 const OCR_LANG_NAMES = {
     eng: 'English',
@@ -40,20 +35,20 @@ Rules:
 }
 
 export default async (req, res) => {
-  const supabase = getSupabase();
-    setCors(req, res);
+    const supabase = getSupabase();
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const {
-        extensionId,
+        extensionId: extensionIdRaw,
         rawText,
         lang = 'eng',
         secretToken,
     } = req.body || {};
 
-    if (!extensionId || typeof extensionId !== 'string') {
-        return res.status(400).json({ error: 'extensionId requis' });
+    const extensionId = normalizeInstallId(extensionIdRaw);
+    if (!extensionId) {
+        return res.status(400).json({ error: 'Invalid install ID' });
     }
 
     if (!rawText || typeof rawText !== 'string' || rawText.length > 10000) {
