@@ -5,7 +5,7 @@ let _resend = null;
 const getResend = () => { if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY); return _resend; };
 
 // ✅ URL de confirmation — pointe vers un nouvel endpoint /api/confirm-link
-const BACKEND_URL = 'https://backend.kokoukoumassi27.workers.dev';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://backend.sitt.workers.dev';
 
 async function ensureSecretToken(userId, existingToken) {
   if (existingToken) return existingToken;
@@ -32,7 +32,7 @@ async function ensureSecretToken(userId, existingToken) {
 
 export default async (req, res) => {
   const supabase = getSupabase();
-  const resend   = getResend();
+  const resend = getResend();
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -86,7 +86,7 @@ export default async (req, res) => {
 
     // Envoyer l'email via Resend
     await resend.emails.send({
-      from: 'SITT <onboarding@resend.dev>', // ← remplace par ton domaine vérifié sur Resend
+      from: process.env.RESEND_FROM_EMAIL || 'SITT <noreply@sitt.space>',
       to: normalizedEmail,
       subject: '🔐 Confirme la liaison de ton extension SITT',
       html: `
