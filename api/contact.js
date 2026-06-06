@@ -31,7 +31,7 @@ export default async (req, res) => {
         return res.status(400).json({ error: 'invalid_message' });
     }
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'SITT Contact <onboarding@resend.dev>';
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'SITT <noreply@sitt.space>';
     const toEmail = process.env.CONTACT_TO_EMAIL || 'rouffdesign@gmail.com';
 
     try {
