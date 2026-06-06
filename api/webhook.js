@@ -11,7 +11,7 @@ async function sendActivationEmail(email, secretToken, creditsAdded) {
   try {
     const resend = getResend();
     const packName = PACK_NAMES[creditsAdded] || `${creditsAdded} crédits`;
-    const from = process.env.RESEND_FROM_EMAIL || 'SITT <onboarding@resend.dev>';
+    const from = process.env.RESEND_FROM_EMAIL || 'SITT <noreply@sitt.space>';
     await resend.emails.send({
       from,
       to: email,
