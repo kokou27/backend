@@ -117,12 +117,15 @@ export default async (req, res) => {
   }
 
   // ── Vérification quota/crédits ───────────────────────────────────────────
+  let actualScansToday = scansTodayRaw;
+  let newBalanceAfter = null;
+
   if (hasPaidCredits) {
     // Paid: décrémenter avec verrou optimiste
-    const newBalance = (user.credit_balance || 0) - 1;
+    newBalanceAfter = (user.credit_balance || 0) - 1;
     const { data: updated } = await supabase.from('users')
       .update({
-        credit_balance: newBalance,
+        credit_balance: newBalanceAfter,
         scans_today: scansTodayRaw + 1,
         last_scan_date: today,
         scans_this_minute: scansThisMinute + 1,
@@ -137,28 +140,41 @@ export default async (req, res) => {
       return res.status(409).json({ error: 'CONFLICT', message: 'Requête simultanée — réessayez.' });
     }
   } else {
-    // Free: vérifier quota journalier via RPC atomique
-    // S'assurer que la ligne trial_usage existe
-    await supabase.from('trial_usage').upsert(
-      [{ extension_id, scans_today: 0, last_scan_date: today, created_at: now.toISOString(), updated_at: now.toISOString() }],
-      { onConflict: 'extension_id', ignoreDuplicates: true }
-    );
+    // Free: vérifier quota journalier directement (sans RPC)
+    const { data: trialRow } = await supabase
+      .from('trial_usage')
+      .select('scans_today, last_scan_date')
+      .eq('extension_id', extension_id)
+      .maybeSingle();
 
-    const { data: trial, error: rpcError } = await supabase
-      .rpc('increment_trial_scan', { ext_id: extension_id, today_date: today });
+    const isNewDay = !trialRow || trialRow.last_scan_date !== today;
+    const currentDayScans = isNewDay ? 0 : (trialRow.scans_today || 0);
 
-    if (rpcError || !trial || typeof trial.allowed === 'undefined') {
-      console.error('RPC error:', rpcError);
-      return res.status(500).json({ error: 'SERVER_ERROR' });
-    }
-    if (!trial.allowed) {
+    if (currentDayScans >= DAILY_FREE_LIMIT) {
       return res.status(402).json({
         error: 'LIMIT_REACHED',
         message: 'Limite quotidienne atteinte. Revenez demain ou obtenez des crédits.',
-        scans_today: trial.scans_today,
+        scans_today: currentDayScans,
         scans_remaining: 0,
       });
     }
+
+    // Upsert atomique
+    const { error: upsertError } = await supabase
+      .from('trial_usage')
+      .upsert({
+        extension_id,
+        scans_today: currentDayScans + 1,
+        last_scan_date: today,
+        updated_at: now.toISOString(),
+      }, { onConflict: 'extension_id' });
+
+    if (upsertError) {
+      console.error('Upsert trial_usage error:', upsertError);
+      return res.status(500).json({ error: 'SERVER_ERROR' });
+    }
+
+    actualScansToday = currentDayScans + 1;
 
     // Mettre à jour rate limit même pour free
     if (user) {
@@ -232,11 +248,9 @@ export default async (req, res) => {
     }
 
     // Récupérer le solde à jour
-    const finalBalance = hasPaidCredits
-      ? ((user.credit_balance || 0) - 1)
-      : null;
+    const finalBalance = hasPaidCredits ? newBalanceAfter : null;
     const scansRemaining = !hasPaidCredits
-      ? Math.max(0, DAILY_FREE_LIMIT - (scansTodayRaw + 1))
+      ? Math.max(0, DAILY_FREE_LIMIT - actualScansToday)
       : null;
 
     return res.status(200).json({
