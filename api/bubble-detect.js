@@ -1,13 +1,25 @@
 // ROBOFLOW_API_KEY  → wrangler secret put ROBOFLOW_API_KEY
 // ROBOFLOW_MODEL_URL → var dans wrangler.toml, ex: https://detect.roboflow.com/workspace/model/version
+//
+// Protégé par extensionId + limite/minute (checkRateLimit) : sans ça, la route
+// était un proxy gratuit et illimité vers une clé Roboflow payante.
+import { normalizeInstallId } from '../_lib/install-id.js';
+import { checkRateLimit } from '../_lib/rate-limit.js';
 
 export default async (req, res) => {
+    if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { imageBase64, imageWidth, imageHeight } = req.body;
+    const { imageBase64, imageWidth, imageHeight, extensionId: extensionIdRaw } = req.body;
+    const extensionId = normalizeInstallId(extensionIdRaw);
+    if (!extensionId) return res.status(401).json({ error: 'extensionId requis (32 hex)' });
+
     if (!imageBase64 || typeof imageBase64 !== 'string' || imageBase64.length > 6_000_000) {
         return res.status(400).json({ error: 'imageBase64 invalide' });
     }
+
+    const gate = await checkRateLimit(extensionId, { freeLimit: 5 });
+    if (!gate.ok) return res.status(gate.status).json({ error: gate.error });
 
     const apiKey  = process.env.ROBOFLOW_API_KEY;
     const modelUrl = process.env.ROBOFLOW_MODEL_URL;

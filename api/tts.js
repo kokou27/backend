@@ -9,7 +9,12 @@
  *
  * Pour passer en production : activer Google Cloud Text-to-Speech API sur
  * console.cloud.google.com et créer une clé API séparée.
+ *
+ * Protégé par extensionId + limite/minute (checkRateLimit) : sans ça, la route
+ * était un proxy gratuit et illimité vers une clé Google payante.
  */
+import { normalizeInstallId } from '../_lib/install-id.js';
+import { checkRateLimit } from '../_lib/rate-limit.js';
 
 // Codes langue ISO → codes Google TTS
 const LANG_MAP = {
@@ -25,8 +30,13 @@ export default async (req, res) => {
 
   const rawText = String(req.query?.text || '').trim();
   const rawLang = String(req.query?.lang || 'en').toLowerCase().trim();
+  const extensionId = normalizeInstallId(req.query?.extensionId);
 
+  if (!extensionId) return res.status(401).json({ error: 'extensionId requis (32 hex)' });
   if (!rawText) return res.status(400).json({ error: 'text requis' });
+
+  const gate = await checkRateLimit(extensionId, { freeLimit: 10 });
+  if (!gate.ok) return res.status(gate.status).json({ error: gate.error });
 
   // Sécurité : limite la taille du texte
   const text = rawText.slice(0, 200);
