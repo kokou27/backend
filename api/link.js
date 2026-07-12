@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Resend } from 'resend';
 import { getSupabase } from '../_lib/supabase.js';
 
@@ -7,10 +8,10 @@ const getResend = () => { if (!_resend) _resend = new Resend(process.env.RESEND_
 // ✅ URL de confirmation — pointe vers un nouvel endpoint /api/confirm-link
 const BACKEND_URL = process.env.BACKEND_URL || 'https://backend.sitt.workers.dev';
 
-async function ensureSecretToken(userId, existingToken) {
+async function ensureSecretToken(supabase, userId, existingToken) {
   if (existingToken) return existingToken;
 
-  const generatedToken = require('crypto').randomUUID();
+  const generatedToken = crypto.randomUUID();
   const { error } = await supabase
     .from('users')
     .update({ secret_token: generatedToken })
@@ -54,7 +55,7 @@ export default async (req, res) => {
   if (userByEmail) {
     // ✅ Même extensionId → déjà lié, retourner directement
     if (userByEmail.extension_id === extensionId) {
-      const secretToken = await ensureSecretToken(userByEmail.id, userByEmail.secret_token);
+      const secretToken = await ensureSecretToken(supabase, userByEmail.id, userByEmail.secret_token);
       return res.status(200).json({
         success: true,
         credit_balance: userByEmail.credit_balance,
@@ -64,7 +65,7 @@ export default async (req, res) => {
     }
 
     // ⚠️ ExtensionId différent → envoyer un email de confirmation
-    const token = require('crypto').randomUUID();
+    const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
 
     // Supprimer les anciens tokens pour cet email
@@ -124,7 +125,7 @@ export default async (req, res) => {
     .single();
 
   if (userByExtId && !userByExtId.email) {
-    const secretToken = userByExtId.secret_token || require('crypto').randomUUID();
+    const secretToken = userByExtId.secret_token || crypto.randomUUID();
     const { error } = await supabase
       .from('users')
       .update({
@@ -147,7 +148,7 @@ export default async (req, res) => {
   }
 
   // ── Aucun utilisateur trouvé → créer avec 0 crédits ──────────────────
-  const secretToken = require('crypto').randomUUID();
+  const secretToken = crypto.randomUUID();
   const { error: insertError } = await supabase
     .from('users')
     .insert([{
