@@ -178,7 +178,9 @@ function extractVariantId(payload) {
 
 export default async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
   const supabase = getSupabase();
+
   const rawBody = req.rawBody || '';
   const signature = req.headers['x-signature'];
   const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
@@ -306,7 +308,7 @@ export default async (req, res) => {
     // 3b. Nouveau compte : créer avec extension_id ET email
     const { error: createUserError } = await supabase.from('users').insert([{
       email: email,
-      extension_id: extensionId || null,
+      extension_id: extensionId || crypto.randomUUID().replace(/-/g, ''),
       credit_balance: creditsToAdd,
       secret_token: crypto.randomUUID(),
       scans_today: 0,
