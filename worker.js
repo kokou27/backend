@@ -23,6 +23,8 @@ import handleContact from './api/contact.js';
 import handleTts from './api/tts.js';
 import handleBubbleDetect from './api/bubble-detect.js';
 import handleUse from './api/use.js';
+import handleOrderStatus from './api/order-status.js';
+import handleRecoverCode from './api/recover-code.js';
 
 // ── ROUTES ──────────────────────────────────────────────────────
 const ROUTES = {
@@ -40,6 +42,8 @@ const ROUTES = {
   '/api/tts': handleTts,
   '/api/bubble-detect': handleBubbleDetect,
   '/api/use': handleUse,
+  '/api/order-status': handleOrderStatus,
+  '/api/recover-code': handleRecoverCode,
 };
 
 // ── CORS WHITELIST ──────────────────────────────────────────────
