@@ -51,5 +51,8 @@ export default async (req, res) => {
     dev_pro_email: devProEmail,
     test_mode: testMode,
     checkout_urls: testMode ? TEST_CHECKOUT_URLS : PROD_CHECKOUT_URLS,
+    // DEBUG temporaire — à retirer une fois le diagnostic terminé
+    debug_ping_test: process.env.PING_TEST ?? null,
+    debug_test_mode_raw: process.env.TEST_MODE ?? null,
   });
 };
