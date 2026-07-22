@@ -43,7 +43,7 @@ export default async (req, res) => {
     : '';
   const devProEmail = devProActive && rawDevProEmail ? rawDevProEmail : null;
 
-  const testMode = process.env.TEST_MODE === 'true';
+  const testMode = (process.env.TEST_MODE || '').trim() === 'true';
 
   res.status(200).json({
     buy_button_enabled: process.env.BUY_BUTTON_ENABLED === 'true',
