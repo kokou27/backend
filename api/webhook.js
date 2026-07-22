@@ -210,6 +210,9 @@ export default async (req, res) => {
   const variantId = extractVariantId(payload);
   // extension_id passé via checkout[custom][extension_id]
   const extensionId = String(payload?.meta?.custom_data?.extension_id || '').trim();
+  // fetch_token passé via checkout[custom][fetch_token] — permet à la page de
+  // succès de récupérer le code d'activation sans email (voir /api/order-status)
+  const fetchToken = String(payload?.meta?.custom_data?.fetch_token || '').trim();
 
   if (status !== 'paid' || !email || !variantId) {
     return res.status(200).json({ received: true, skipped: true });
@@ -290,7 +293,7 @@ export default async (req, res) => {
       type: 'purchase',
       amount: creditsToAdd,
       credit_balance_after: newBalance,
-      metadata: { variant_id: variantId, order_id: orderId, extension_id: extensionId },
+      metadata: { variant_id: variantId, order_id: orderId, extension_id: extensionId, fetch_token: fetchToken || null },
       created_at: new Date().toISOString(),
     }]);
 
@@ -324,8 +327,21 @@ export default async (req, res) => {
 
     console.log(`✅ Nouveau compte : ${email} (extension: ${extensionId || 'inconnu'})`);
 
-    // Récupérer le secret_token du nouveau compte pour l'envoyer par email
-    const { data: newUser } = await supabase.from('users').select('secret_token').eq('email', email).maybeSingle();
+    // Récupérer le nouveau compte (id + secret_token)
+    const { data: newUser } = await supabase.from('users').select('id, secret_token').eq('email', email).maybeSingle();
+
+    if (newUser?.id) {
+      const { error: newTxError } = await supabase.from('transactions').insert([{
+        user_id: newUser.id,
+        type: 'purchase',
+        amount: creditsToAdd,
+        credit_balance_after: creditsToAdd,
+        metadata: { variant_id: variantId, order_id: orderId, extension_id: extensionId, fetch_token: fetchToken || null },
+        created_at: new Date().toISOString(),
+      }]);
+      if (newTxError) console.error('Erreur insertion transaction nouveau compte (non bloquante):', newTxError);
+    }
+
     if (email && newUser?.secret_token) {
       await sendActivationEmail(email, newUser.secret_token, creditsToAdd);
     }
