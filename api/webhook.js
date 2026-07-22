@@ -178,7 +178,7 @@ function extractVariantId(payload) {
 
 export default async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
+  const supabase = getSupabase();
   const rawBody = req.rawBody || '';
   const signature = req.headers['x-signature'];
   const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
